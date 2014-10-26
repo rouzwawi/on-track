@@ -31,6 +31,10 @@
         var svg = d3.select("svg");
         var svgElem = svg.node();
 
+        // layers
+        var stationLayer = svg.append('g');
+        var trainLayer = svg.append('g');
+
         function getStations(path, segmentBlacklist) {
             var segments = path.pathSegList;
             var stations = [];
@@ -82,10 +86,11 @@
         function placeStations(path, segmentBlacklist) {
             segmentBlacklist = segmentBlacklist || [];
 
+            var id = path.id;
             var stations = getStations(path, segmentBlacklist);
             var segChanges = getStationLenghts(path, segmentBlacklist);
 
-            var RADIUS = 4;
+            var RADIUS = 2;
 
             var totalLength = path.getTotalLength();
             var lengthScale = d3.interpolate(0, totalLength);
@@ -102,45 +107,56 @@
                 .attr('stroke-width', .5)
                 .attr('stroke');
 
-            var group = svg.append('g');
+            // stationLayer.selectAll('circle')
+            //     .data(segChanges)
+            //     .enter()
+            //         .append('circle')
+            //         .style('fill', 'red')
+            //         .attr({
+            //             'cx': pointX,
+            //             'cy': pointY,
+            //             'r': RADIUS
+            //         });
 
-            group.selectAll('circle')
-                .data(segChanges)
-                .enter()
-                    .append('circle')
-                    .style('fill', 'red')
-                    .attr({
-                        'cx': pointX,
-                        'cy': pointY,
-                        'r': RADIUS
-                    });
+            function firstOrLast(i, len) {
+                return i == 0 || i == (len - 1);
+            }
 
-            group.selectAll('circle.st')
+            stationLayer.selectAll('circle.st.train-' + id)
                 .data(stations)
                 .enter()
-                    .append('circle').classed('st', true)
+                    .append('circle')
+                    .classed('st', true)
+                    .classed('train-' + id, true)
                     .attr({
-                        'stroke-width': '2',
-                        'stroke': 'white',
+                        'stroke-width': '1',
+                        'stroke': function(d, i) { return firstOrLast(i, stations.length) ? color : 'white'; },
+                        'fill': function(d, i) { return firstOrLast(i, stations.length) ? 'white' : 'silver'; },
                         'cx': function(d) { return d.x; },
                         'cy': function(d) { return d.y; },
-                        'r': RADIUS
+                        'r': function(d, i) { return firstOrLast(i, stations.length) ? 3 : RADIUS; }
                     });
 
-            var trainPath = group.append('path')
-                .attr('d', d3.select(path).attr('d'))
-                .attr('fill', 'none')
-                .attr('stroke', color)
-                .attr('stroke-width', 3);
-            trans(trainPath.node());
+            for (var n = 0; n < 3; n++) {
+                var trainPath = trainLayer.append('path')
+                    .classed('train-' + id, true)
+                    .attr('d', d3.select(path).attr('d'))
+                    .attr('fill', 'none')
+                    .attr('stroke', color)
+                    .attr('stroke-width', 3);
+
+                trans(trainPath.node());
+            }
         }
         
-        function trans(path, dir) {
+        function trans(path, dir, delay) {
+            delay = delay || 0;
             d3.select(path).transition()
-                .duration(4000)
+                .duration(100 + Math.floor(Math.random() * 10000))
+                .delay(delay)
                 .ease('linear')
                 .attrTween('stroke-dasharray', tweenDash(path, dir))
-                .each('end', function() { trans(path, !dir) });
+                .each('end', function() { trans(path, !dir, 500+Math.floor(Math.random() * 1000)) });
         }
 
         // 0,     0, s, (l-s)
