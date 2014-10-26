@@ -9,6 +9,11 @@
         #container {
             margin: 45px;
         }
+
+        #tbana {
+            width: 900px;
+            margin: auto auto;
+        }
     </style>
 </head>
 <body>
@@ -137,7 +142,7 @@
                         'r': function(d, i) { return firstOrLast(i, stations.length) ? 3 : RADIUS; }
                     });
 
-            for (var n = 0; n < 3; n++) {
+            for (var n = 0; n < 2; n++) {
                 var trainPath = trainLayer.append('path')
                     .classed('train-' + id, true)
                     .attr('d', d3.select(path).attr('d'))
@@ -152,7 +157,7 @@
         function trans(path, dir, delay) {
             delay = delay || 0;
             d3.select(path).transition()
-                .duration(100 + Math.floor(Math.random() * 10000))
+                .duration(3000 + Math.floor(Math.random() * 8000))
                 .delay(delay)
                 .ease('linear')
                 .attrTween('stroke-dasharray', tweenDash(path, dir))
