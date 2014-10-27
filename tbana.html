@@ -1,6 +1,6 @@
 <html>
 <head>
-    <title>restdir</title>
+    <title>on track</title>
     <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
     <script src="http://d3js.org/queue.v1.min.js"></script> 
 
@@ -142,7 +142,7 @@
                         'r': function(d, i) { return firstOrLast(i, stations.length) ? 3 : RADIUS; }
                     });
 
-            for (var n = 0; n < 2; n++) {
+            for (var n = 0; n < 1; n++) {
                 var trainPath = trainLayer.append('path')
                     .classed('train-' + id, true)
                     .attr('d', d3.select(path).attr('d'))
@@ -157,7 +157,7 @@
         function trans(path, dir, delay) {
             delay = delay || 0;
             d3.select(path).transition()
-                .duration(3000 + Math.floor(Math.random() * 8000))
+                .duration(10000)
                 .delay(delay)
                 .ease('linear')
                 .attrTween('stroke-dasharray', tweenDash(path, dir))
@@ -182,6 +182,17 @@
         placeStations(svgElem.getElementById('blue-akalla'), [4,5]);
         placeStations(svgElem.getElementById('blue-hjulsta'));
         placeStations(svgElem.getElementById('blue-kungs'));
+
+        placeStations(svgElem.getElementById('green-hasselby'));
+        placeStations(svgElem.getElementById('green-hagsatra'));
+        placeStations(svgElem.getElementById('green-gullmars'));
+        placeStations(svgElem.getElementById('green-farsta'));
+        placeStations(svgElem.getElementById('green-skarpnack'));
+        placeStations(svgElem.getElementById('red-morby'));
+        placeStations(svgElem.getElementById('red-ropsten'));
+        placeStations(svgElem.getElementById('red-liljeholmen'));
+        placeStations(svgElem.getElementById('red-fruangen'));
+        placeStations(svgElem.getElementById('red-norsborg'));
     }
 </script>
 </body>
