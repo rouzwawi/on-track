@@ -2,7 +2,7 @@
 <head>
     <title>on track</title>
     <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
-    <script src="http://d3js.org/queue.v1.min.js"></script> 
+    <script src="http://d3js.org/queue.v1.min.js"></script>
 
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
     <style type="text/css">
@@ -19,7 +19,7 @@
 <body>
 
 <div id="container">
-    <h1 id="title">Karouzel</h1>
+    <h1 id="title">Karouzel - <span id="time-display"></span></h1>
     <div id="tbana"></div>
 </div>
 
@@ -36,15 +36,52 @@
         var svg = d3.select("svg");
         var svgElem = svg.node();
 
+        var timeDisplay = d3.select('#time-display');
+
         // layers
         var stationLayer = svg.append('g');
         var trainLayer = svg.append('g');
+
+        var timeFormat = d3.time.format('%H:%M');
+        var timeDisplayFormat = d3.time.format('%H:%M:%S');
+
+        var timeFactor = 60;
+        var timeListeners = [];
+
+        startTime();
+
+        function addTimeListener(f) {
+            timeListeners.push(f);
+        }
+
+        function startTime() {
+            var resolution = 1000/timeFactor;
+            var t = +new Date(2014, 11, 06)  +  4 * 60 * 60 * 1000  +  51 * 60 * 1000  +  55 * 1000;
+            var t0 = Date.now();
+
+            d3.timer(tick, resolution);
+
+            function tick() {
+                var t1 = t + (Date.now() - t0)*timeFactor;
+
+                var tDate = new Date(t1);
+                timeDisplay.text(timeDisplayFormat(tDate));
+
+                for (var i = 0; i < timeListeners.length; i++) {
+                    timeListeners[i](tDate);
+                }
+
+                d3.timer(tick, resolution);
+                return true;
+            }
+        }
+
 
         function getStations(path, segmentBlacklist) {
             var segments = path.pathSegList;
             var stations = [];
             var firstStationSegment = segments[0];
-            
+
             var x = firstStationSegment.x,
                 y = firstStationSegment.y;
             stations.push({ x: x, y: y });
@@ -88,8 +125,9 @@
             return segChanges;
         }
 
-        function placeStations(path, segmentBlacklist) {
+        function placeStations(path, segmentBlacklist, timeTable) {
             segmentBlacklist = segmentBlacklist || [];
+            timeTable = timeTable || [];
 
             var id = path.id;
             var stations = getStations(path, segmentBlacklist);
@@ -112,17 +150,6 @@
                 .attr('stroke-width', .5)
                 .attr('stroke');
 
-            // stationLayer.selectAll('circle')
-            //     .data(segChanges)
-            //     .enter()
-            //         .append('circle')
-            //         .style('fill', 'red')
-            //         .attr({
-            //             'cx': pointX,
-            //             'cy': pointY,
-            //             'r': RADIUS
-            //         });
-
             function firstOrLast(i, len) {
                 return i == 0 || i == (len - 1);
             }
@@ -142,48 +169,165 @@
                         'r': function(d, i) { return firstOrLast(i, stations.length) ? 3 : RADIUS; }
                     });
 
-            for (var n = 0; n < 1; n++) {
-                var trainPath = trainLayer.append('path')
+            function createPath() {
+                return trainLayer.append('path')
                     .classed('train-' + id, true)
                     .attr('d', d3.select(path).attr('d'))
                     .attr('fill', 'none')
                     .attr('stroke', color)
                     .attr('stroke-width', 3);
+            }
 
-                trans(trainPath.node());
+            for (var n = 0; n < timeTable.length; n++) {
+                var trainTimes = timeTable[n];
+
+                trackTimeTable(createPath, trainTimes, segChanges);
             }
         }
-        
-        function trans(path, dir, delay) {
-            delay = delay || 0;
-            d3.select(path).transition()
-                .duration(10000)
-                .delay(delay)
-                .ease('linear')
-                .attrTween('stroke-dasharray', tweenDash(path, dir))
-                .each('end', function() { trans(path, !dir, 500+Math.floor(Math.random() * 1000)) });
-        }
 
-        // 0,     0, s, (l-s)
-        // 0, (l-s), s,     0
+        function trackTimeTable(createPath, times, segChanges) {
+            var currentTableIndex = -1;
+            var trainPath;
 
-        function tweenDash(path, dir) {
-            var l = path.getTotalLength(),
-                s = 8,
-                d = 2*s+1,
-                i = d3.interpolate(dir ? 0:l-d, dir ? l-d:0);
-            return function() {
-                return function(t) {
-                    return '0,' + i(t) + ',' + s + ',1,' + s + ',' + i(1-t);
+            function findInTable(time, times) {
+                for (var i = 0; i < times.length; i++) {
+                    if (times[i].length > 0 && times[i][0] == time) {
+                        return i;
+                    }
                 };
+                return -1;
+            }
+
+            function timeTick(time) {
+                timeString = timeFormat(time);
+                tableIndex = findInTable(timeString, times);
+
+                if (tableIndex != -1 && tableIndex < times.length - 1 && tableIndex != currentTableIndex) {
+                    currentTableIndex = tableIndex;
+
+                    var l0 = segChanges[tableIndex],
+                        l1 = segChanges[tableIndex + 1],
+                        t0 = timeFormat.parse(timeString),
+                        t1 = timeFormat.parse(times[tableIndex + 1][0]),
+                        duration = (+t1 - t0) / timeFactor;
+
+                    console.log('from', times[tableIndex][1], 'to', times[tableIndex + 1][1]);
+                    console.log('table index changed', tableIndex);
+                    console.log('start at', l0, 'to', l1, 'in', duration, 'ms');
+
+                    animateStations(l0, l1, duration);
+                }
+
+                else if (tableIndex == times.length - 1 && tableIndex != currentTableIndex) {
+                    currentTableIndex = tableIndex;
+                    // remove train
+                    console.log('remove');
+                    if (trainPath) {
+                        trainPath.remove();
+                    }
+                }
             };
+
+            function animateStations(l0, l1, duration) {
+                trainPath = trainPath || createPath();
+
+                trainPath.transition()
+                    .duration(duration)
+                    .ease('linear')
+                    .attrTween('stroke-dasharray', tweenDash(trainPath.node(), l0, l1));
+            }
+
+            // 0,     0, s, (l-s)
+            // 0, (l-s), s,     0
+
+            function tweenDash(path, l0, l1) {
+                var l = path.getTotalLength(),
+                    s = 8,
+                    d = 2*s+1,
+                    i = d3.interpolate(Math.max(0,   l0*l-d/2), Math.min(l,   l1*l-d/2)),
+                    r = d3.interpolate(Math.max(0, l-l0*l-d/2), Math.max(l, l-l1*l-d/2));
+                return function() {
+                    return function(t) {
+                        return '0,' + i(t) + ',' + s + ',1,' + s + ',' + r(t);
+                    };
+                };
+            }
+
+            addTimeListener(timeTick);
         }
 
         placeStations(svgElem.getElementById('blue-akalla'), [4,5]);
         placeStations(svgElem.getElementById('blue-hjulsta'));
         placeStations(svgElem.getElementById('blue-kungs'));
 
-        placeStations(svgElem.getElementById('green-hasselby'));
+        var aTrain = [
+            ["04:53", "Hässelby strand"],
+            ["04:54", "Hässelby gård"],
+            ["04:55", "Johannelund"],
+            ["04:57", "Vällingby"],
+            ["04:58", "Råcksta"],
+            ["04:59", "Blackeberg"],
+            ["05:00", "Islandstorget"],
+            ["05:01", "Ängbyplan"],
+            ["05:04", "Åkeshov"],
+            ["05:05", "Brommaplan"],
+            ["05:06", "Abrahamsberg"],
+            ["05:08", "Stora mossen"],
+            ["05:11", "Alvik"],
+            ["05:12", "Kristineberg"],
+            ["05:13", "Thorildsplan"],
+            ["05:15", "Fridhemsplan"],
+            ["05:17", "S:t Eriksplan"],
+            ["05:18", "Odenplan"],
+            ["05:20", "Rådmansgatan"],
+            ["05:21", "Hötorget"],
+            ["05:23", "T-Centralen"],
+            ["05:24", "Gamla stan"],
+            ["05:26", "Slussen"],
+            ["05:27", "Medborgarplatsen"],
+            ["05:28", "Skanstull"],
+            ["05:32", "Gullmarsplan"]];
+
+        var bTrain = [
+            ["04:55", "Hässelby strand"],
+            ["04:57", "Hässelby gård"],
+            ["04:59", "Johannelund"],
+            ["05:01", "Vällingby"],
+            ["05:03", "Råcksta"],
+            ["05:05", "Blackeberg"],
+            ["05:07", "Islandstorget"],
+            ["05:08", "Ängbyplan"],
+            ["05:10", "Åkeshov"],
+            ["05:13", "Brommaplan"],
+            ["05:15", "Abrahamsberg"],
+            ["05:17", "Stora mossen"],
+            ["05:19", "Alvik"],
+            ["05:20", "Kristineberg"],
+            ["05:22", "Thorildsplan"],
+            ["05:23", "Fridhemsplan"],
+            ["05:24", "S:t Eriksplan"],
+            ["05:26", "Odenplan"],
+            ["05:27", "Rådmansgatan"],
+            ["05:28", "Hötorget"],
+            ["05:29", "T-Centralen"],
+            ["05:31", "Gamla stan"],
+            ["05:32", "Slussen"],
+            ["05:33", "Medborgarplatsen"],
+            ["05:35", "Skanstull"],
+            ["05:37", "Gullmarsplan"]];
+
+        var rest = [
+            ["05:33", "Globen"],
+            ["05:34", "Enskede gård"],
+            ["05:36", "Sockenplan"],
+            ["05:37", "Svedmyra"],
+            ["05:39", "Stureby"],
+            ["05:40", "Bandhagen"],
+            ["05:42", "Högdalen"],
+            ["05:44", "Rågsved"],
+            ["05:46", "Hagsätra"]];
+
+        placeStations(svgElem.getElementById('green-hasselby'), [], [aTrain, bTrain]);
         placeStations(svgElem.getElementById('green-hagsatra'));
         placeStations(svgElem.getElementById('green-gullmars'));
         placeStations(svgElem.getElementById('green-farsta'), [7]);
